@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Trimurti Capital Trading Terminal</title>
+    <link rel="stylesheet" href="/static/style.css?v=20">
+</head>
+<body>
+
+<div class="app">
+
+    <!-- LEFT PANEL -->
+    <div class="left-panel">
+        <div class="brand-row">
+            <img src="/static/logo.png" class="brand-logo" alt="Trimurti Capital Logo">
+            <div>
+                <h1>Trimurti Capital</h1>
+                <div class="brand-subtitle">Trading Terminal</div>
+            </div>
+        </div>
+
+        <label>TRADINGVIEW STRATEGY</label>
+        <select id="strategy">
+            <option>VP PREMIUM 5m TP SNIPER2 VOTE NO SECURITY</option>
+            <option>SuperTrend Scalper v3</option>
+            <option>VP POC Strategy</option>
+            <option>MACD Scalper</option>
+        </select>
+
+        <label>SYMBOL</label>
+        <input id="symbol" value="NIFTY">
+
+        <div class="strike-box">
+            <h3>ACTIVE STRIKE PRICE MANAGEMENT</h3>
+            <p>Dashboard Strike Active - TradingView JSON Strike Ignored</p>
+
+            <label>EXPIRY</label>
+            <input id="expiry" value="" placeholder="Example: 20260726">
+
+            <label>CALL STRIKE</label>
+            <input id="callStrike" list="callStrikeList" value="24500 CE" placeholder="Example: 24500 CE" onchange="autoFillContractId('CE')" onblur="autoFillContractId('CE')">
+            <datalist id="callStrikeList"></datalist>
+
+            <label>CALL ExchangeInstrumentId</label>
+            <input id="callExchangeId" value="" placeholder="Example: 72729">
+
+            <label>PUT STRIKE</label>
+            <input id="putStrike" list="putStrikeList" value="24400 PE" placeholder="Example: 24400 PE" onchange="autoFillContractId('PE')" onblur="autoFillContractId('PE')">
+            <datalist id="putStrikeList"></datalist>
+
+            <label>PUT ExchangeInstrumentId</label>
+            <input id="putExchangeId" value="" placeholder="Example: 72710">
+
+            <label>QTY</label>
+            <input id="qty" type="number" value="65">
+
+            <label>OLD / EXISTING WEBHOOK URL</label>
+            <input id="oldWebhookUrl" value="" placeholder="Paste existing webhook URL here">
+
+            <button class="green" onclick="saveStrike()">SAVE ACTIVE STRIKE</button>
+        </div>
+
+        <div class="contract-box">
+            <h3>NIFTY CONTRACT MASTER</h3>
+            <p>Add/update CE/PE ID once, then select strike above. You can delete any row.</p>
+
+            <label>CONTRACT EXPIRY</label>
+            <input id="contractExpiry" value="" placeholder="Example: 20260726">
+
+            <label>OPTION TYPE</label>
+            <select id="contractOptionType">
+                <option value="CE">CE</option>
+                <option value="PE">PE</option>
+            </select>
+
+            <label>STRIKE</label>
+            <input id="contractStrike" value="" placeholder="Example: 24500">
+
+            <label>ExchangeInstrumentId</label>
+            <input id="contractExchangeId" value="" placeholder="Example: 72729">
+
+            <button class="blue" onclick="addContractFromInputs()">ADD / UPDATE CONTRACT</button>
+
+            <table class="contract-table">
+                <thead>
+                    <tr>
+                        <th>Expiry</th>
+                        <th>Strike</th>
+                        <th>ID</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="contractRows"></tbody>
+            </table>
+        </div>
+
+        <button class="green glow" onclick="activateStrategy()">ACTIVATE STRATEGY</button>
+        <button class="red" onclick="deactivateStrategy()">DEACTIVATE STRATEGY</button>
+
+        <button class="blue" onclick="manualOrder('BUY')">MANUAL CALL BUY</button>
+        <button class="blue" onclick="manualOrder('SELL')">MANUAL PUT BUY</button>
+
+        <button class="yellow" onclick="testWebhookBuy()">TEST CALL WEBHOOK</button>
+        <button class="yellow" onclick="testWebhookSell()">TEST PUT WEBHOOK</button>
+
+        <button class="red" onclick="squareOff()">EMERGENCY SQUARE OFF</button>
+    </div>
+
+    <!-- MAIN PANEL -->
+    <div class="main-panel">
+        <div class="top-bar">
+            <b>NIFTY</b>
+            <span>NIFTY Local Chart Area</span>
+            <span class="live">● LIVE</span>
+        </div>
+
+        <div class="chart-box">
+            <div class="chart-title-bar">
+                <span>NIFTY 5m Candlestick Chart</span>
+                <span class="data-mode">
+                    LTP: <b id="chartLtp">--</b>
+                    | O: <b id="chartOpen">--</b>
+                    H: <b id="chartHigh">--</b>
+                    L: <b id="chartLow">--</b>
+                    C: <b id="chartClose">--</b>
+                    | DEMO DATA
+                </span>
+            </div>
+
+            <canvas id="niftyLocalChart"></canvas>
+        </div>
+
+        <div class="order-log">
+            <h3>ORDER LOG - SYMPHONY API</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Scrip</th>
+                        <th>Type</th>
+                        <th>Qty</th>
+                        <th>Price</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="orders"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="right-panel">
+        <h3>RISK MANAGEMENT</h3>
+        <p>REALIZED P&L</p>
+        <h1 class="pnl" id="pnlValue">+ ₹5,450</h1>
+
+        <button class="kill" onclick="squareOff()">KILL SWITCH</button>
+
+        <div class="status">
+            <p>Strategy: <span id="activeStatus">OFF</span> <span id="strategyDot" class="status-dot off"></span></p>
+            <p>API: SYMPHONY</p>
+            <p>Status: CONNECTED</p>
+        </div>
+
+        <div class="status">
+            <p><b>Webhook Flow</b></p>
+            <p>TradingView → Dashboard → Existing Webhook</p>
+            <p>Strike: Dashboard Override</p>
+        </div>
+    </div>
+
+</div>
+
+<!-- TRIMURTI Dashboard JS -->
+<script src="/static/app.js?v=20"></script>
+
+</body>
+</html>

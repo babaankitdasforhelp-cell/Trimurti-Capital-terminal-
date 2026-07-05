@@ -1,0 +1,90 @@
+{
+    "brand_name": "Trimurti Capital",
+    "symbol": "NIFTY",
+    "strategy": "VP PREMIUM 5m TP SNIPER2 VOTE NO SECURITY",
+    "expiry": "20260726",
+    "call_strike": "24500 CE",
+    "call_exchange_id": "72729",
+    "put_strike": "24400 PE",
+    "put_exchange_id": "72710",
+    "qty": 130,
+    "old_webhook_url": "",
+    "strategy_active": false,
+    "pnl": 5450,
+    "orders": [
+        {
+            "time": "LIVE",
+            "scrip": "ALL POSITIONS",
+            "type": "SQUARE OFF",
+            "qty": 0,
+            "price": "-",
+            "status": "REQUESTED"
+        },
+        {
+            "time": "LIVE",
+            "scrip": "ALL POSITIONS",
+            "type": "SQUARE OFF",
+            "qty": 0,
+            "price": "-",
+            "status": "REQUESTED"
+        },
+        {
+            "time": "LIVE",
+            "scrip": "ALL POSITIONS",
+            "type": "SQUARE OFF",
+            "qty": 0,
+            "price": "-",
+            "status": "REQUESTED"
+        },
+        {
+            "time": "WEBHOOK",
+            "scrip": "NIFTY 24400 PE",
+            "type": "PUT_BUY",
+            "qty": 130,
+            "price": "MARKET",
+            "status": "DEMO / NOT FORWARDED"
+        },
+        {
+            "time": "WEBHOOK",
+            "scrip": "NIFTY 24500 CE",
+            "type": "CALL_BUY",
+            "qty": 130,
+            "price": "MARKET",
+            "status": "DEMO / NOT FORWARDED"
+        }
+    ],
+    "open_positions": {
+        "CE": {
+            "ExchangeInstrumentId": 72729,
+            "StrikePrice": 24500,
+            "OptionType": "CE",
+            "Expiry": 20260726,
+            "Qty": 130
+        },
+        "PE": {
+            "ExchangeInstrumentId": 72710,
+            "StrikePrice": 24400,
+            "OptionType": "PE",
+            "Expiry": 20260726,
+            "Qty": 130
+        }
+    },
+    "contracts": [
+        {
+            "symbol": "NIFTY",
+            "expiry": "20260726",
+            "strike": 24400,
+            "strike_text": "24400 PE",
+            "option_type": "PE",
+            "exchange_instrument_id": "72710"
+        },
+        {
+            "symbol": "NIFTY",
+            "expiry": "20260726",
+            "strike": 24500,
+            "strike_text": "24500 CE",
+            "option_type": "CE",
+            "exchange_instrument_id": "72729"
+        }
+    ]
+}

@@ -1,0 +1,765 @@
+//@version=6
+//@strategy_alert_message {{strategy.order.alert_message}}
+strategy("Baba Ankitdas - VP PREMIUM 5m TP + SNIPER 2 VOTE NO SECURITY",
+     overlay=true,
+     pyramiding=0,
+     process_orders_on_close=true,
+     calc_on_order_fills=false,
+     calc_on_every_tick=false,
+     max_lines_count=500,
+     max_labels_count=500,
+     max_boxes_count=500)
+
+//================ JSON INPUTS ================
+ExpiryInput = input.string("20260526", "Expiry")
+
+ExchangeInstrumentIdCE = input.string("72298", "CE ExchangeInstrumentId")
+StrikePriceInputCE     = input.string("25000", "CE StrikePrice")
+
+ExchangeInstrumentIdPE = input.string("72298", "PE ExchangeInstrumentId")
+StrikePriceInputPE     = input.string("25000", "PE StrikePrice")
+
+baseQty        = input.int(65, "Base Qty", minval=1)
+lotMultiplier  = input.int(2, "Lot Multiplier", minval=1)
+finalQty       = str.tostring(baseQty * lotMultiplier)
+
+//================ SESSION INPUTS ================
+useSession  = input.bool(true, "Use IST Session")
+startHour   = input.int(9, "Start Hour IST")
+startMinute = input.int(16, "Start Minute IST")
+endHour     = input.int(15, "End Hour IST")
+endMinute   = input.int(15, "End Minute IST")
+
+//================ TRADE SIDE CONTROL ================
+group_side = "Trade Side Control"
+enableCallBuy = input.bool(true, "Enable CALL BUY", group=group_side)
+enablePutBuy  = input.bool(true, "Enable PUT BUY", group=group_side)
+
+
+//================ FIXED TP SL INPUTS ================
+quickTP = 100.0  // FIXED INPUT
+fixedSL      = input.float(19.0, "Fixed SL Points", step=0.1)
+maxAllowedSL = input.float(19.0, "Max Allowed SL Points", step=0.1)
+useHardSL20 = true  // FIXED INPUT
+useTrail = true  // FIXED INPUT
+trailStart   = input.float(20.0, "Normal Trail Start Points", step=0.1)
+trailOffset  = input.float(3.0, "Normal Trail Offset Points", step=0.1)
+
+useBoxSL = false  // FIXED INPUT
+slBuffer = 2.0  // FIXED INPUT
+
+holdTrendInProfit = true  // FIXED INPUT
+useMaxHoldExit = true  // FIXED INPUT
+maxHoldBars = 100  // FIXED INPUT
+
+cooldownBars = 0  // FIXED INPUT
+
+//================ TP MISS RECOVERY / MIDDLE TRAP MODE ================
+// Purpose: original trade TP miss thay ane SL/negative exit thay,
+// pachhi turant blind reverse nahi, pan price trigger male tyare opposite scalp.
+// MACD confirmation ane 1m candle majority confirmation removed as requested.
+group_trap = "TP Miss Recovery - Middle Trap"
+useTpMissRecovery = input.bool(true, "Use TP Miss Recovery Mode", group=group_trap)
+maxRecoverySteps  = input.int(2, "Max Recovery Steps After Loss", minval=1, maxval=3, group=group_trap)
+recoveryValidBars = input.int(4, "Recovery Valid Bars After Loss", minval=1, maxval=20, group=group_trap)
+recoveryBreakPts  = input.float(6.0, "Recovery Trigger Points", step=0.1, group=group_trap)
+recoverySL        = input.float(14.0, "Recovery SL Points", step=0.1, group=group_trap)
+recoveryTP        = input.float(18.0, "Recovery TP Points", step=0.1, group=group_trap)
+recoveryTrailStart  = input.float(12.0, "Recovery Trail Start Points", step=0.1, group=group_trap)
+recoveryTrailOffset = input.float(3.0, "Recovery Trail Offset Points", step=0.1, group=group_trap)
+
+//================ VOTE SETTINGS ================
+group_vote = "Vote System"
+minVotesForEntry = 1  // FIXED INPUT
+blockTieTrade = true  // FIXED INPUT
+
+//================ VOTE 1 - SNIPER 2.0 VP + EMA FALLBACK ================
+// Upar ni Sniper 2.0 script nu buy/sell logic vote system ma add.
+// FVG gate ane FVG SL nathi. Aa vote ma pehla VP POC signal check thay,
+// VP signal na hoy to EMA 20/50 fallback signal vote aape.
+useSniper2Vote = true  // FIXED INPUT
+sn2MaxLbk        = 100
+sn2NumRows       = 30
+sn2DistThreshold = 30.0
+sn2DoubleRatio   = 0.65
+
+//================ BIG CANDLE NO TRADE FILTER ================
+group_big = "Big Candle No Trade Filter"
+useBigCandleBlock = true  // FIXED INPUT
+bigCandleLimitPts = 55.0  // FIXED INPUT
+
+//================ SESSION INPUTS ================
+// Main IST Session inputs are kept near JSON section above. Duplicate session inputs removed.
+
+//================ SR BLOCKS REMOVED ================
+// SR blocker, PA2 SR/Fibo/Trendline, and old anchor-based reversal blocks are fully removed.
+
+//================ VOTE 2 - FVG SETTINGS ================
+group_fvg = "Vote 2 - Candle Count + FVG + Max SL"
+showFVGBoxes = false  // FIXED INPUT
+fvgMaxStored = 80  // FIXED INPUT
+bullFvgColor = color.new(color.green, 85)  // FIXED INPUT
+bearFvgColor = color.new(color.red, 85)  // FIXED INPUT
+bullInvColor = color.new(color.blue, 75)  // FIXED INPUT
+bearInvColor = color.new(color.orange, 75)  // FIXED INPUT
+
+//================ VOTE 3 - TAIL & EMA ENGINE INPUTS ================
+group_tail    = "Vote 3 - Tail & EMA Engine"
+useTailLogic = true  // FIXED INPUT
+minMultiplier = 2.0  // FIXED INPUT
+maxMultiplier = 3.0  // FIXED INPUT
+emaLength = 20  // FIXED INPUT
+
+//================ VOTE 4 - METHOD 3 HFT INPUTS ================
+group_hft    = "Vote 4 - Method 3 HFT"
+useMethod3OR = true  // FIXED INPUT
+m3MinScore = 70  // FIXED INPUT
+m3EmaFastLen = 20  // FIXED INPUT
+m3EmaSlowLen = 50  // FIXED INPUT
+m3RsiLen = 14  // FIXED INPUT
+m3AdxLen = 14  // FIXED INPUT
+m3AdxSmooth = 14  // FIXED INPUT
+m3AdxMin = 18  // FIXED INPUT
+m3VolLen = 20  // FIXED INPUT
+m3VolMult = 1.2  // FIXED INPUT
+m3SweepLen = 10  // FIXED INPUT
+
+//================ VOTE 5 - 1M CANDLE MAJORITY REMOVED ================
+// 1m ni 5 mathi 3 candle confirmation removed as requested.
+
+//================ SESSION & SAFETY ================
+startT = timestamp("GMT+5:30", year, month, dayofmonth, startHour, startMinute)
+endT   = timestamp("GMT+5:30", year, month, dayofmonth, endHour, endMinute)
+
+inSession        = useSession ? (time >= startT and time <= endT) : true
+entrySessionOK   = useSession ? (time >= startT and time < endT) : true
+sessionJustEnded = useSession and time >= endT and time[1] < endT
+confirmedBar     = barstate.isconfirmed
+
+//================ POSITION / COOLDOWN TRACKING ================
+var int entryBar = na
+var int lastExitBar = na
+var float activeSL = na
+
+var bool activeFvgTrade   = false
+var bool activeRecoveryTrade = false
+var bool lastClosedWasRecoveryTrade = false
+
+newPosition  = strategy.position_size != 0 and strategy.position_size[1] == 0
+exitPosition = strategy.position_size == 0 and strategy.position_size[1] != 0
+flatPosition = strategy.position_size == 0
+
+if newPosition
+    entryBar := bar_index
+
+if exitPosition
+    lastExitBar := bar_index
+    lastClosedWasRecoveryTrade := activeRecoveryTrade
+
+// HARD SAFETY: if entry OR exit happens on this candle, no fresh entry again on same candle.
+// This prevents same-candle re-entry after a 20 point SL / TP / trail / max-hold exit.
+var int noReEntryBar = na
+if newPosition or exitPosition
+    noReEntryBar := bar_index
+
+if flatPosition
+    entryBar := na
+    activeSL := na
+    activeFvgTrade := false
+    activeRecoveryTrade := false
+
+barsInTrade = strategy.position_size != 0 and not na(entryBar) ? (bar_index - entryBar) : na
+cooldownOK = na(lastExitBar) or (bar_index - lastExitBar > cooldownBars)
+
+// HARD SAME-BAR BLOCK:
+// If any entry OR any exit happened on this candle, do not allow a fresh entry again
+// on the same candle.
+openTradeThisBarNow =
+     strategy.opentrades > 0 and
+     strategy.opentrades.entry_bar_index(strategy.opentrades - 1) == bar_index
+
+closedTradeThisBarNow =
+     strategy.closedtrades > 0 and
+     strategy.closedtrades.exit_bar_index(strategy.closedtrades - 1) == bar_index
+
+sameCandleReEntryOK =
+     (na(noReEntryBar) or bar_index > noReEntryBar) and
+     not openTradeThisBarNow and
+     not closedTradeThisBarNow
+
+tradeIsOpen = strategy.position_size != 0
+canTakeNewTrade = not tradeIsOpen and cooldownOK and sameCandleReEntryOK
+
+//=============================================================================
+// VOTE 1 - SNIPER 2.0 VP POC + EMA 20/50 FALLBACK LOGIC
+//=============================================================================
+sn2Profile = array.new_float(sn2NumRows, 0.0)
+
+sn2HighestVp = ta.highest(high, sn2MaxLbk)
+sn2LowestVp  = ta.lowest(low, sn2MaxLbk)
+sn2Interval  = (sn2HighestVp - sn2LowestVp) / sn2NumRows
+
+if bar_index >= sn2MaxLbk and sn2Interval > 0
+    for i = 0 to sn2MaxLbk - 1
+        sn2H = high[i]
+        sn2L = low[i]
+        sn2O = open[i]
+        sn2C = close[i]
+        sn2V = volume[i]
+
+        sn2CandleRange = math.max(sn2H - sn2L, syminfo.mintick)
+        sn2BodyTop     = math.max(sn2O, sn2C)
+        sn2BodyBot     = math.min(sn2O, sn2C)
+
+        sn2RMinRaw = int(math.floor((sn2HighestVp - sn2H) / sn2Interval))
+        sn2RMaxRaw = int(math.floor((sn2HighestVp - sn2L) / sn2Interval))
+
+        sn2RMin = math.max(0, math.min(sn2NumRows - 1, sn2RMinRaw))
+        sn2RMax = math.max(0, math.min(sn2NumRows - 1, sn2RMaxRaw))
+
+        if sn2RMin <= sn2RMax
+            for r = sn2RMin to sn2RMax
+                sn2RowTop = sn2HighestVp - r * sn2Interval
+                sn2RowBot = sn2HighestVp - (r + 1) * sn2Interval
+
+                sn2OverlapTop = math.min(sn2RowTop, sn2H)
+                sn2OverlapBot = math.max(sn2RowBot, sn2L)
+                sn2Overlap    = math.max(0.0, sn2OverlapTop - sn2OverlapBot)
+
+                sn2BodyOverlapTop = math.min(sn2RowTop, sn2BodyTop)
+                sn2BodyOverlapBot = math.max(sn2RowBot, sn2BodyBot)
+                sn2BodyOverlap    = math.max(0.0, sn2BodyOverlapTop - sn2BodyOverlapBot)
+
+                sn2WickOverlap = math.max(0.0, sn2Overlap - sn2BodyOverlap)
+
+                sn2WeightedVol = sn2V * ((sn2BodyOverlap * 1.30) + (sn2WickOverlap * 0.70)) / sn2CandleRange
+
+                array.set(sn2Profile, r, array.get(sn2Profile, r) + sn2WeightedVol)
+
+sn2MaxProfile = array.max(sn2Profile)
+sn2Poc1Idx    = array.indexof(sn2Profile, sn2MaxProfile)
+sn2Poc1Price  = sn2Interval > 0 and sn2Poc1Idx >= 0 ? sn2HighestVp - sn2Poc1Idx * sn2Interval - sn2Interval / 2 : close
+
+float sn2MaxSecProfile = 0.0
+int   sn2Poc2Idx = sn2Poc1Idx
+
+if sn2Poc1Idx >= 0
+    for r = 0 to sn2NumRows - 1
+        if math.abs(r - sn2Poc1Idx) >= 4
+            sn2Val = array.get(sn2Profile, r)
+            if sn2Val > sn2MaxSecProfile
+                sn2MaxSecProfile := sn2Val
+                sn2Poc2Idx := r
+
+sn2Poc2Price     = sn2Interval > 0 and sn2Poc2Idx >= 0 ? sn2HighestVp - sn2Poc2Idx * sn2Interval - sn2Interval / 2 : close
+sn2Poc2Vol       = sn2Poc2Idx >= 0 ? array.get(sn2Profile, sn2Poc2Idx) : 0.0
+sn2IsDoublePeak  = sn2MaxProfile > 0 and sn2Poc2Vol >= sn2MaxProfile * sn2DoubleRatio and sn2Poc1Idx != sn2Poc2Idx
+
+sn2UpperPoc = math.max(sn2Poc1Price, sn2Poc2Price)
+sn2LowerPoc = math.min(sn2Poc1Price, sn2Poc2Price)
+
+sn2VpBuyCondition  = false
+sn2VpSellCondition = false
+
+if sn2MaxProfile > 0 and sn2Interval > 0
+    if sn2IsDoublePeak
+        sn2VpBuyCondition  := close <= sn2LowerPoc + sn2DistThreshold and close >= sn2LowerPoc - sn2Interval / 2
+        sn2VpSellCondition := close >= sn2UpperPoc - sn2DistThreshold and close <= sn2UpperPoc + sn2Interval / 2
+    else
+        sn2VpBuyCondition  := sn2Poc1Price - close >= sn2DistThreshold
+        sn2VpSellCondition := close - sn2Poc1Price >= sn2DistThreshold
+
+sn2VpLongEntry  = sn2VpBuyCondition and not sn2VpBuyCondition[1]
+sn2VpShortEntry = sn2VpSellCondition and not sn2VpSellCondition[1]
+
+// Sniper 2.0 ma VP first priority. VP signal na hoy to EMA 20/50 fallback.
+sn2EmaFast = ta.ema(close, 20)
+sn2EmaSlow = ta.ema(close, 50)
+
+sn2EmaLongCond  = sn2EmaFast > sn2EmaSlow and sn2EmaFast > sn2EmaFast[1]
+sn2EmaShortCond = sn2EmaFast < sn2EmaSlow and sn2EmaFast < sn2EmaFast[1]
+
+sn2VpHasSignal = sn2VpLongEntry or sn2VpShortEntry
+
+sn2AlgoLongEntry  = sn2VpLongEntry or (not sn2VpHasSignal and sn2EmaLongCond)
+sn2AlgoShortEntry = sn2VpShortEntry or (not sn2VpHasSignal and sn2EmaShortCond)
+
+sn2BothSignal = sn2AlgoLongEntry and sn2AlgoShortEntry
+sn2LongVote   = useSniper2Vote and sn2AlgoLongEntry and not sn2BothSignal
+sn2ShortVote  = useSniper2Vote and sn2AlgoShortEntry and not sn2BothSignal
+
+//=============================================================================
+// VOTE 2 - FVG CONFIRMATION ENGINE
+//=============================================================================
+type FVG
+    float top
+    float bottom
+    bool  isBull
+    bool  isInverted
+    int   startBar
+    box   id
+
+var fvgArray = array.new<FVG>()
+
+isBullFvg = low > high[2] and close[1] > open[1]
+isBearFvg = high < low[2] and close[1] < open[1]
+
+if confirmedBar and isBullFvg
+    if array.size(fvgArray) >= fvgMaxStored
+        FVG oldFvg = array.shift(fvgArray)
+        if not na(oldFvg.id)
+            box.delete(oldFvg.id)
+
+    box newBox = na
+    if showFVGBoxes
+        newBox := box.new(left=bar_index[2], top=low, right=bar_index, bottom=high[2], border_color=color.new(color.green, 100), bgcolor=bullFvgColor)
+
+    array.push(fvgArray, FVG.new(low, high[2], true, false, bar_index[2], newBox))
+
+if confirmedBar and isBearFvg
+    if array.size(fvgArray) >= fvgMaxStored
+        FVG oldFvg = array.shift(fvgArray)
+        if not na(oldFvg.id)
+            box.delete(oldFvg.id)
+
+    box newBox = na
+    if showFVGBoxes
+        newBox := box.new(left=bar_index[2], top=low[2], right=bar_index, bottom=high, border_color=color.new(color.red, 100), bgcolor=bearFvgColor)
+
+    array.push(fvgArray, FVG.new(low[2], high, false, false, bar_index[2], newBox))
+
+bool fvgSupportActive = false
+bool fvgResistanceActive = false
+float currentBoxSLLong = na
+float currentBoxSLShort = na
+
+if array.size(fvgArray) > 0
+    for i = array.size(fvgArray) - 1 to 0
+        FVG f = array.get(fvgArray, i)
+
+        if showFVGBoxes and not na(f.id)
+            box.set_right(f.id, bar_index)
+
+        if not f.isInverted
+            if f.isBull and close < f.bottom
+                f.isInverted := true
+                if showFVGBoxes and not na(f.id)
+                    box.set_bgcolor(f.id, bearInvColor)
+            else if not f.isBull and close > f.top
+                f.isInverted := true
+                if showFVGBoxes and not na(f.id)
+                    box.set_bgcolor(f.id, bullInvColor)
+
+        bool isSupport = (f.isBull and not f.isInverted) or (not f.isBull and f.isInverted)
+        bool isResistance = (not f.isBull and not f.isInverted) or (f.isBull and f.isInverted)
+
+        if isSupport and low <= f.top and close >= f.bottom
+            fvgSupportActive := true
+            currentBoxSLLong := f.bottom
+
+        if isResistance and high >= f.bottom and close <= f.top
+            fvgResistanceActive := true
+            currentBoxSLShort := f.top
+
+        if bar_index - f.startBar > 150
+            if showFVGBoxes and not na(f.id)
+                box.delete(f.id)
+            array.remove(fvgArray, i)
+        else
+            array.set(fvgArray, i, f)
+
+//=============================================================================
+// VOTE 3 - TAIL & EMA ENGINE
+//=============================================================================
+ema20 = ta.ema(close, emaLength)
+emaRising  = ema20 > ema20[1]
+emaFalling = ema20 < ema20[1]
+priceAboveEma = close > ema20
+priceBelowEma = close < ema20
+
+bodySize  = math.max(math.abs(close - open), syminfo.mintick)
+lowerTail = math.min(open, close) - low
+upperTail = high - math.max(open, close)
+
+isBullishTail = (lowerTail >= (bodySize * minMultiplier)) and (lowerTail <= (bodySize * maxMultiplier))
+isBearishTail = (upperTail >= (bodySize * minMultiplier)) and (upperTail <= (bodySize * maxMultiplier))
+
+tailLongCond  = useTailLogic and isBullishTail and priceAboveEma and emaRising
+tailShortCond = useTailLogic and isBearishTail and priceBelowEma and emaFalling
+
+tailBothSignal = tailLongCond and tailShortCond
+tailLongVote   = tailLongCond and not tailBothSignal
+tailShortVote  = tailShortCond and not tailBothSignal
+
+//=============================================================================
+// VOTE 5 - 1M CANDLE MAJORITY REMOVED
+//=============================================================================
+// 1 minute ni 3/5 candle majority confirmation script mathi remove kari chhe.
+bool candleMajorityLongCond = false
+bool candleMajorityShortCond = false
+bool ccLongVote = false
+bool ccShortVote = false
+
+//=============================================================================
+// VOTE 4 - METHOD 3 HFT
+//=============================================================================
+m3EmaFast = ta.ema(close, m3EmaFastLen)
+m3EmaSlow = ta.ema(close, m3EmaSlowLen)
+m3RsiVal  = ta.rsi(close, m3RsiLen)
+m3VolMA   = ta.sma(volume, m3VolLen)
+
+[m3PlusDI, m3MinusDI, m3AdxVal] = ta.dmi(m3AdxLen, m3AdxSmooth)
+
+m3EmaBull = m3EmaFast > m3EmaSlow and m3EmaFast > m3EmaFast[1]
+m3EmaBear = m3EmaFast < m3EmaSlow and m3EmaFast < m3EmaFast[1]
+
+m3StrongBullCandle = close > open and (close - open) > (high - low) * 0.45
+m3StrongBearCandle = close < open and (open - close) > (high - low) * 0.45
+m3VolSpike = volume > m3VolMA * m3VolMult
+
+m3PrevHigh = ta.highest(high[1], m3SweepLen)
+m3PrevLow  = ta.lowest(low[1], m3SweepLen)
+
+m3BullSweep = low < m3PrevLow and close > m3PrevLow
+m3BearSweep = high > m3PrevHigh and close < m3PrevHigh
+m3BreakHigh = close > m3PrevHigh
+m3BreakLow  = close < m3PrevLow
+
+m3TrendOK = m3AdxVal >= m3AdxMin
+m3NotChoppy = m3TrendOK or m3VolSpike or m3BullSweep or m3BearSweep
+
+m3LongScore = 0
+m3ShortScore = 0
+
+m3LongScore += m3EmaBull ? 20 : 0
+m3LongScore += m3RsiVal > 55 ? 20 : 0
+m3LongScore += m3PlusDI > m3MinusDI ? 15 : 0
+m3LongScore += m3StrongBullCandle ? 15 : 0
+m3LongScore += m3VolSpike ? 10 : 0
+m3LongScore += m3BullSweep ? 20 : 0
+m3LongScore += m3BreakHigh ? 10 : 0
+
+m3ShortScore += m3EmaBear ? 20 : 0
+m3ShortScore += m3RsiVal < 45 ? 20 : 0
+m3ShortScore += m3MinusDI > m3PlusDI ? 15 : 0
+m3ShortScore += m3StrongBearCandle ? 15 : 0
+m3ShortScore += m3VolSpike ? 10 : 0
+m3ShortScore += m3BearSweep ? 20 : 0
+m3ShortScore += m3BreakLow ? 10 : 0
+
+m3LongScore := math.min(m3LongScore, 100)
+m3ShortScore := math.min(m3ShortScore, 100)
+
+m3LongCond  = useMethod3OR and m3NotChoppy and m3LongScore >= m3MinScore and m3LongScore > m3ShortScore
+m3ShortCond = useMethod3OR and m3NotChoppy and m3ShortScore >= m3MinScore and m3ShortScore > m3LongScore
+
+m3BothSignal = m3LongCond and m3ShortCond
+m3LongVote   = m3LongCond and not m3BothSignal
+m3ShortVote  = m3ShortCond and not m3BothSignal
+
+//=============================================================================
+// 1M CANDLE MAJORITY + FVG MAX SL LOGIC
+//=============================================================================
+// HARD 20 SL MODE: Box/FVG SL is fully disabled. FVG remains only as entry confirmation.
+prospectiveLongSL  = close - fixedSL
+prospectiveShortSL = close + fixedSL
+
+longRiskPoints  = fixedSL
+shortRiskPoints = fixedSL
+
+longRiskOK  = fixedSL <= maxAllowedSL
+shortRiskOK = fixedSL <= maxAllowedSL
+
+fvgLongEntry  = candleMajorityLongCond and fvgSupportActive and longRiskOK
+fvgShortEntry = candleMajorityShortCond and fvgResistanceActive and shortRiskOK
+
+fvgBothSignal = fvgLongEntry and fvgShortEntry
+fvgLongVote   = fvgLongEntry and not fvgBothSignal
+fvgShortVote  = fvgShortEntry and not fvgBothSignal
+
+//=============================================================================
+// FINAL VOTE SYSTEM
+// Active votes: Sniper 2.0 VP+EMA, Tail EMA, HFT. 1m Candle Majority removed.
+//=============================================================================
+longVotes =
+     (sn2LongVote ? 1 : 0) +
+     (fvgLongVote ? 1 : 0) +
+     (tailLongVote ? 1 : 0) +
+     (m3LongVote ? 1 : 0) +
+     (ccLongVote ? 1 : 0)
+
+shortVotes =
+     (sn2ShortVote ? 1 : 0) +
+     (fvgShortVote ? 1 : 0) +
+     (tailShortVote ? 1 : 0) +
+     (m3ShortVote ? 1 : 0) +
+     (ccShortVote ? 1 : 0)
+
+voteTie = longVotes > 0 and shortVotes > 0 and longVotes == shortVotes
+
+//=============================================================================
+// HARD RULE:
+// Same side previous trade profit / trailing / loss પછી next candle માં ફરી same side trade આવે,
+// તો minimum 3 votes ફરજિયાત.
+//=============================================================================
+var bool lastClosedProfit = false
+var bool lastClosedLoss   = false
+var bool lastClosedTrail  = false
+var bool lastClosedNeeds3 = false
+var bool lastClosedLong   = false
+var bool lastClosedShort  = false
+var int  lastClosedExitBar = na
+var string lastClosedComment = ""
+var int cachedClosedTrades = 0
+
+// TP miss recovery pending state.
+// pendingRecoveryDir: 1 = CALL BUY recovery, -1 = PUT BUY recovery.
+var int pendingRecoveryDir = 0
+var int pendingRecoveryBar = na
+var float pendingRecoveryTrigger = na
+var int recoveryStepCount = 0
+
+if strategy.closedtrades > 0 and strategy.closedtrades != cachedClosedTrades
+    cachedClosedTrades := strategy.closedtrades
+    int lastTradeNo = strategy.closedtrades - 1
+    lastClosedProfit  := strategy.closedtrades.profit(lastTradeNo) > 0
+    lastClosedLoss    := strategy.closedtrades.profit(lastTradeNo) < 0
+    lastClosedLong    := strategy.closedtrades.size(lastTradeNo) > 0
+    lastClosedShort   := strategy.closedtrades.size(lastTradeNo) < 0
+    lastClosedExitBar := strategy.closedtrades.exit_bar_index(lastTradeNo)
+    lastClosedComment := strategy.closedtrades.exit_comment(lastTradeNo)
+    lastClosedComment := na(lastClosedComment) ? "" : lastClosedComment
+    lastClosedTrail   := str.contains(lastClosedComment, "TRAIL")
+    lastClosedNeeds3  := lastClosedProfit or lastClosedLoss or lastClosedTrail
+
+    // If TP miss becomes a loss, prepare opposite-side recovery.
+    // Long loss => PUT recovery after price breaks down.
+    // Short loss => CALL recovery after price breaks up.
+    bool recoveryStepAllowed = not lastClosedWasRecoveryTrade or recoveryStepCount < maxRecoverySteps
+
+    if useTpMissRecovery and lastClosedLoss and recoveryStepAllowed
+        pendingRecoveryDir := lastClosedLong ? -1 : lastClosedShort ? 1 : 0
+        pendingRecoveryBar := bar_index
+        pendingRecoveryTrigger := lastClosedLong ? close - recoveryBreakPts : close + recoveryBreakPts
+        recoveryStepCount := lastClosedWasRecoveryTrade ? recoveryStepCount + 1 : 1
+    else
+        pendingRecoveryDir := 0
+        pendingRecoveryBar := na
+        pendingRecoveryTrigger := na
+        recoveryStepCount := lastClosedLoss ? recoveryStepCount : 0
+
+sameLongNextAfterNeeds3 =
+     lastClosedNeeds3 and
+     lastClosedLong and
+     not na(lastClosedExitBar) and
+     bar_index == lastClosedExitBar + 1
+
+sameShortNextAfterNeeds3 =
+     lastClosedNeeds3 and
+     lastClosedShort and
+     not na(lastClosedExitBar) and
+     bar_index == lastClosedExitBar + 1
+
+longRequiredVotes  = sameLongNextAfterNeeds3 ? math.max(minVotesForEntry, 3) : minVotesForEntry
+shortRequiredVotes = sameShortNextAfterNeeds3 ? math.max(minVotesForEntry, 3) : minVotesForEntry
+
+//================ BIG CANDLE HARD BLOCK ================
+// Current + previous 2 candles check.
+// Last 3 candles ma koi pan candle range 55 point thi moti hoy to koi pan sanjogoma trade nahi.
+currentCandleRange = high - low
+bigCandleRangeLast3 = ta.highest(high - low, 3)
+bigCandleInLast3 = bigCandleRangeLast3 > bigCandleLimitPts
+bigCandleBlocked = useBigCandleBlock and bigCandleInLast3
+bigCandleOK = not bigCandleBlocked
+
+
+//================ FINAL ENTRY - ONLY NORMAL VOTE + RECOVERY ================
+// P0/P1 MTF priority engines removed. No security calls in this script.
+normalLongEntry =
+     enableCallBuy and
+     confirmedBar and
+     entrySessionOK and
+     canTakeNewTrade and
+     not sessionJustEnded and
+     bigCandleOK and
+     longVotes >= longRequiredVotes and
+     longVotes > shortVotes and
+     (not blockTieTrade or not voteTie)
+
+normalShortEntry =
+     enablePutBuy and
+     confirmedBar and
+     entrySessionOK and
+     canTakeNewTrade and
+     not sessionJustEnded and
+     bigCandleOK and
+     shortVotes >= shortRequiredVotes and
+     shortVotes > longVotes and
+     (not blockTieTrade or not voteTie)
+
+baseEntryActive = normalLongEntry or normalShortEntry
+
+recoveryPendingValid =
+     useTpMissRecovery and
+     pendingRecoveryDir != 0 and
+     not na(pendingRecoveryBar) and
+     bar_index > pendingRecoveryBar and
+     bar_index - pendingRecoveryBar <= recoveryValidBars
+
+recoveryLongEntry =
+     not baseEntryActive and
+     recoveryPendingValid and
+     pendingRecoveryDir == 1 and
+     enableCallBuy and
+     confirmedBar and
+     entrySessionOK and
+     canTakeNewTrade and
+     not sessionJustEnded and
+     bigCandleOK and
+     high >= pendingRecoveryTrigger
+
+recoveryShortEntry =
+     not baseEntryActive and
+     recoveryPendingValid and
+     pendingRecoveryDir == -1 and
+     enablePutBuy and
+     confirmedBar and
+     entrySessionOK and
+     canTakeNewTrade and
+     not sessionJustEnded and
+     bigCandleOK and
+     low <= pendingRecoveryTrigger
+
+if useTpMissRecovery and pendingRecoveryDir != 0 and not na(pendingRecoveryBar) and bar_index - pendingRecoveryBar > recoveryValidBars
+    pendingRecoveryDir := 0
+    pendingRecoveryBar := na
+    pendingRecoveryTrigger := na
+
+finalLongEntry = normalLongEntry or recoveryLongEntry
+finalShortEntry = normalShortEntry or recoveryShortEntry
+
+normalLongSource =
+     "L" + str.tostring(longVotes) + "/S" + str.tostring(shortVotes) +
+     (sn2LongVote ? " SN2" : "") +
+     (fvgLongVote ? " FVG" : "") +
+     (tailLongVote ? " TAIL" : "") +
+     (m3LongVote ? " HFT" : "") +
+     (ccLongVote ? " 5C" : "")
+
+normalShortSource =
+     "S" + str.tostring(shortVotes) + "/L" + str.tostring(longVotes) +
+     (sn2ShortVote ? " SN2" : "") +
+     (fvgShortVote ? " FVG" : "") +
+     (tailShortVote ? " TAIL" : "") +
+     (m3ShortVote ? " HFT" : "") +
+     (ccShortVote ? " 5C" : "")
+
+recoveryLongSource = "TP_MISS_RECOVERY CALL"
+recoveryShortSource = "TP_MISS_RECOVERY PUT"
+
+longSource = recoveryLongEntry ? recoveryLongSource : normalLongSource
+shortSource = recoveryShortEntry ? recoveryShortSource : normalShortSource
+
+//================ TRADE-SOURCE TRACKING ================
+if finalLongEntry
+    activeRecoveryTrade := recoveryLongEntry
+    activeFvgTrade := recoveryLongEntry ? false : fvgLongVote
+    pendingRecoveryDir := 0
+    pendingRecoveryBar := na
+    pendingRecoveryTrigger := na
+
+if finalShortEntry
+    activeRecoveryTrade := recoveryShortEntry
+    activeFvgTrade := recoveryShortEntry ? false : fvgShortVote
+    pendingRecoveryDir := 0
+    pendingRecoveryBar := na
+    pendingRecoveryTrigger := na
+
+//================ JSON FUNCTIONS - SNIPER 2.0 STYLE ================
+ceBuyJson() =>
+    '{"Exchange":"NSEFO","ExchangeInstrumentId":' + ExchangeInstrumentIdCE + ',"SymbolName":"NIFTY","SymbolSeries":"OPTIDX","Expiry":' + ExpiryInput + ',"OptionType":"CE","StrikePrice":' + StrikePriceInputCE + ',"OrderSide":"BUY","OrderType":"MARKET","Price":0,"TriggerPrice":0,"Qty":' + finalQty + ',"DisclosedQty":0}'
+
+ceSellJson() =>
+    '{"Exchange":"NSEFO","ExchangeInstrumentId":' + ExchangeInstrumentIdCE + ',"SymbolName":"NIFTY","SymbolSeries":"OPTIDX","Expiry":' + ExpiryInput + ',"OptionType":"CE","StrikePrice":' + StrikePriceInputCE + ',"OrderSide":"SELL","OrderType":"MARKET","Price":0,"TriggerPrice":0,"Qty":' + finalQty + ',"DisclosedQty":0}'
+
+peBuyJson() =>
+    '{"Exchange":"NSEFO","ExchangeInstrumentId":' + ExchangeInstrumentIdPE + ',"SymbolName":"NIFTY","SymbolSeries":"OPTIDX","Expiry":' + ExpiryInput + ',"OptionType":"PE","StrikePrice":' + StrikePriceInputPE + ',"OrderSide":"BUY","OrderType":"MARKET","Price":0,"TriggerPrice":0,"Qty":' + finalQty + ',"DisclosedQty":0}'
+
+peSellJson() =>
+    '{"Exchange":"NSEFO","ExchangeInstrumentId":' + ExchangeInstrumentIdPE + ',"SymbolName":"NIFTY","SymbolSeries":"OPTIDX","Expiry":' + ExpiryInput + ',"OptionType":"PE","StrikePrice":' + StrikePriceInputPE + ',"OrderSide":"SELL","OrderType":"MARKET","Price":0,"TriggerPrice":0,"Qty":' + finalQty + ',"DisclosedQty":0}'
+
+//================ EXECUTION: BAR-CLOSE ORDERS ONLY ================
+// process_orders_on_close=true + calc_on_order_fills=false + calc_on_every_tick=false.
+// MTF security calls removed. Strategy runs on chart timeframe only.
+// Create TradingView alert with: Order fills only.
+if sessionJustEnded and strategy.position_size > 0
+    noReEntryBar := bar_index
+    strategy.close("CALL BUY", comment="C EXIT", alert_message=ceSellJson())
+
+if sessionJustEnded and strategy.position_size < 0
+    noReEntryBar := bar_index
+    strategy.close("PUT BUY", comment="P EXIT", alert_message=peSellJson())
+
+//================ REGULAR ENTRY ================
+// Original CALL signal => CALL BUY
+// Original PUT signal  => PUT BUY
+if finalLongEntry
+    activeSL := close - (recoveryLongEntry ? recoverySL : fixedSL)
+    noReEntryBar := bar_index
+    strategy.entry("CALL BUY", strategy.long, comment="C", alert_message=ceBuyJson())
+
+else if finalShortEntry
+    activeSL := close + (recoveryShortEntry ? recoverySL : fixedSL)
+    noReEntryBar := bar_index
+    strategy.entry("PUT BUY", strategy.short, comment="P", alert_message=peBuyJson())
+
+//================ EXIT MANAGEMENT: ONLY HARD FIXED SL ================
+activeTrailStart  = activeRecoveryTrade ? recoveryTrailStart : trailStart
+activeTrailOffset = activeRecoveryTrade ? recoveryTrailOffset : trailOffset
+activeFixedSL     = activeRecoveryTrade ? recoverySL : fixedSL
+activeQuickTP     = activeRecoveryTrade ? recoveryTP : quickTP
+
+trailPtsTicks = int(math.max(1, math.round(activeTrailStart / syminfo.mintick)))
+trailOffTicks = int(math.max(1, math.round(activeTrailOffset / syminfo.mintick)))
+
+hardSLTicks = int(math.max(1, math.round(activeFixedSL / syminfo.mintick)))
+tpTicks     = int(math.max(1, math.round(activeQuickTP / syminfo.mintick)))
+
+// Main rule: SL is ALWAYS fixedSL points from actual average fill price.
+// No FVG box SL, no dynamic SL, no candle-close SL.
+if strategy.position_size > 0
+    strategy.exit(
+         "CALL EXIT",
+         from_entry="CALL BUY",
+         loss=useHardSL20 ? hardSLTicks : na,
+         profit=activeRecoveryTrade ? tpTicks : (holdTrendInProfit ? na : tpTicks),
+         trail_points=useTrail ? trailPtsTicks : na,
+         trail_offset=useTrail ? trailOffTicks : na,
+         comment_profit="C EXIT",
+         comment_loss="C EXIT",
+         comment_trailing="C EXIT",
+         alert_message=ceSellJson())
+
+if strategy.position_size < 0
+    strategy.exit(
+         "PUT EXIT",
+         from_entry="PUT BUY",
+         loss=useHardSL20 ? hardSLTicks : na,
+         profit=activeRecoveryTrade ? tpTicks : (holdTrendInProfit ? na : tpTicks),
+         trail_points=useTrail ? trailPtsTicks : na,
+         trail_offset=useTrail ? trailOffTicks : na,
+         comment_profit="P EXIT",
+         comment_loss="P EXIT",
+         comment_trailing="P EXIT",
+         alert_message=peSellJson())
+
+longNotInProfit  = strategy.position_size > 0 and close <= strategy.position_avg_price
+shortNotInProfit = strategy.position_size < 0 and close >= strategy.position_avg_price
+
+if useMaxHoldExit and confirmedBar and strategy.position_size > 0 and barsInTrade >= maxHoldBars and longNotInProfit
+    noReEntryBar := bar_index
+    strategy.close("CALL BUY", comment="C EXIT", alert_message=ceSellJson())
+
+if useMaxHoldExit and confirmedBar and strategy.position_size < 0 and barsInTrade >= maxHoldBars and shortNotInProfit
+    noReEntryBar := bar_index
+    strategy.close("PUT BUY", comment="P EXIT", alert_message=peSellJson())
